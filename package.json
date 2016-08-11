@@ -1,0 +1,18 @@
+{
+  "name": "wsconfig",
+  "version": "0.1.0",
+  "description": "Configuration management server",
+  "main": "client.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "co": "^4.6.0",
+    "command-line-args": "^3.0.1",
+    "command-line-usage": "^3.0.3",
+    "ioredis": "^2.2.0",
+    "rest-wrapper": "^0.1.5"
+  }
+}

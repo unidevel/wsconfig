@@ -1,0 +1,97 @@
+#!/usr/bin/env node
+'use strict';
+const restWrapper = require('rest-wrapper');
+const Const = require('../lib/const');
+const path  = require('path');
+const uuid = require('uuid-js');
+const commandLineArgs = require('command-line-args')
+const getUsage = require('command-line-usage')
+const logger = require('../lib/logger')
+const config = require('../lib/config')
+const co = require('co')
+const optionDefinitions = [
+  { name: 'help', alias: 'h', type: Boolean, description: 'Print this usage guide.' },
+  { name: 'verbose', alias: 'v', type: Boolean, description: 'Print more information.'},
+  { name: 'config', alias: 'f', type: String, defaultOption: true, description: 'Specify configuration file to start.' },
+  { name: 'server', alias: 's', type: String, description: 'Configuration server for update/replace action.'},
+  { name: 'redis', alias: 'r', type: String, description: 'Redis information, e.g. localhost:6379'},
+  { name: 'port', alias: 'p', type: String, description: 'Configuration server listening port.'},
+  { name: 'timeout', alias: 't', type: Number, description: 'Action timeout, default 10 seconds.' }
+]
+const options = commandLineArgs(optionDefinitions)
+process.on('uncaughtException', (err) => {
+  logger.error('Unhandled error', err);
+});
+if ( options.help ) {
+  const sections = [
+    {
+      header: 'Configuration server',
+      content: 'Manage configuration and nodes.'
+    },
+    {
+      header: 'Options',
+      optionList: optionDefinitions
+    }
+  ]
+  const usage = getUsage(sections)
+  console.log(usage);
+  process.exit(1);
+}
+logger.setDebug(!!options.verbose);
+if ( options.redis ) {
+  var items = options.redis.split(':');
+  options.redis = { host: items[0] };
+  if ( items[1] ) option.redis.port = parseInt(items[1]);
+}
+if ( options.server ) {
+  if ( !options.config ) {
+    console.error('Missing configuration parameter!');
+    process.exit(1);
+  }
+  var io = require('socket.io-client');
+  var socket = io(options.server);
+  socket.on('error', function(err){
+    logger.error('websocket error', err);
+  });
+  socket.on(Const.EVENT_SETCONFIG, (err)=>{
+    console.info('Update configuration successfully!');
+    process.exit(1);
+  });
+  socket.on('connect', ()=>{
+    co(function*(){
+      const loadConfig = require('../lib/loader');
+      var data = yield loadConfig(options.config);
+      var id = uuid.create().toString();
+      socket.emit(Const.EVENT_SETCONFIG, {id: id, data: data});
+    }).catch((err)=>{
+      logger.error('Error updating configuration to server ' + options.server, err);
+    });
+  });
+}
+else {
+  config.initialize(options);
+  var port = options.port || process.env.PORT || Const.DEFAULT_PORT;
+  var server = restWrapper({
+    port: port,
+    http: { /*static: path.join(__dirname, '../www')*/ },
+    ws: true
+  });
+  server.route(path.join(__dirname, '../rest'));
+  server.routeWS(path.join(__dirname, '../ws'));
+  logger.info('Starting configuration server on port '+port);
+
+  if ( options.config ) {
+    const loadConfig = require('../lib/loader');
+    co(function*(){
+      yield config.clear();
+      var data = yield loadConfig(options.config);
+      for ( var service in data ) {
+        var cfg = data[service];
+        logger.info('adding service', service, cfg);
+        yield config.set(service, cfg);
+      }
+    }).catch((err)=>{
+      logger.error('loading configuration['+options.config+'] error', err);
+    })
+  }
+}
