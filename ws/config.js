@@ -3,10 +3,13 @@
 const config = require('../lib/config')
 const Const = require('../lib/const')
 const logger = require('../lib/logger')
+const json = require('../lib/json')
+
 class Config {
   *set(args, ctx){
     var id = args.id;
-    var data = args.data;
+    var text = args.data;
+    var data = json.parse(text);
     for ( var service in data ) {
       var cfg = data[service];
       logger.info('Updating configuration for', service)

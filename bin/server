@@ -8,6 +8,7 @@ const commandLineArgs = require('command-line-args')
 const getUsage = require('command-line-usage')
 const logger = require('../lib/logger')
 const config = require('../lib/config')
+const json = require('../lib/json')
 const co = require('co')
 const optionDefinitions = [
   { name: 'help', alias: 'h', type: Boolean, description: 'Print this usage guide.' },
@@ -84,10 +85,11 @@ else {
     const loadConfig = require('../lib/loader');
     co(function*(){
       yield config.clear();
-      var data = yield loadConfig(options.config);
+      var content = yield loadConfig(options.config);
+      var data = json.parse(content);
       for ( var service in data ) {
         var cfg = data[service];
-        logger.info('adding service', service, cfg);
+        logger.info('adding service', service);
         yield config.set(service, cfg);
       }
     }).catch((err)=>{
