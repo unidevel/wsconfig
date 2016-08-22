@@ -11,13 +11,12 @@ const config = require('../lib/config')
 const json = require('../lib/json')
 const co = require('co')
 const optionDefinitions = [
-  { name: 'help', alias: 'h', type: Boolean, description: 'Print this usage guide.' },
+  { name: 'help', alias: 'h', type: Boolean, defaultOption: true, description: 'Print this usage guide.' },
   { name: 'verbose', alias: 'v', type: Boolean, description: 'Print more information.'},
-  { name: 'config', alias: 'f', type: String, defaultOption: true, description: 'Specify configuration file to start.' },
-  { name: 'server', alias: 's', type: String, description: 'Configuration server for update/replace action.'},
-  { name: 'redis', alias: 'r', type: String, description: 'Redis information, e.g. localhost:6379'},
-  { name: 'port', alias: 'p', type: String, description: 'Configuration server listening port.'},
-  { name: 'timeout', alias: 't', type: Number, description: 'Action timeout, default 10 seconds.' }
+  { name: 'config', alias: 'c', type: String, description: 'Specify configuration file to start.' },
+  { name: 'redis', alias: 'r', type: String, description: 'Redis information, default is localhost:6379'},
+  { name: 'port', alias: 'p', type: String, description: 'Configuration server listening port, default is 9011.'},
+  { name: 'timeout', alias: 't', type: Number, description: 'Action timeout, default is 10 seconds.' }
 ]
 const options = commandLineArgs(optionDefinitions)
 process.on('uncaughtException', (err) => {
@@ -44,32 +43,7 @@ if ( options.redis ) {
   options.redis = { host: items[0] };
   if ( items[1] ) option.redis.port = parseInt(items[1]);
 }
-if ( options.server ) {
-  if ( !options.config ) {
-    console.error('Missing configuration parameter!');
-    process.exit(1);
-  }
-  var io = require('socket.io-client');
-  var socket = io(options.server);
-  socket.on('error', function(err){
-    logger.error('websocket error', err);
-  });
-  socket.on(Const.EVENT_SETCONFIG, (err)=>{
-    console.info('Update configuration successfully!');
-    process.exit(1);
-  });
-  socket.on('connect', ()=>{
-    co(function*(){
-      const loadConfig = require('../lib/loader');
-      var data = yield loadConfig(options.config);
-      var id = uuid.create().toString();
-      socket.emit(Const.EVENT_SETCONFIG, {id: id, data: data});
-    }).catch((err)=>{
-      logger.error('Error updating configuration to server ' + options.server, err);
-    });
-  });
-}
-else {
+{
   config.initialize(options);
   var port = options.port || process.env.PORT || Const.DEFAULT_PORT;
   var server = restWrapper({

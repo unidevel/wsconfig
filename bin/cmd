@@ -1,0 +1,68 @@
+#!/usr/bin/env node
+'use strict';
+const restWrapper = require('rest-wrapper');
+const Const = require('../lib/const');
+const path  = require('path');
+const uuid = require('uuid-js');
+const commandLineArgs = require('command-line-args')
+const getUsage = require('command-line-usage')
+const logger = require('../lib/logger')
+const config = require('../lib/config')
+const json = require('../lib/json')
+const co = require('co')
+const optionDefinitions = [
+  { name: 'help', alias: 'h', type: Boolean, description: 'Print this usage guide.' },
+  { name: 'verbose', alias: 'v', type: Boolean, description: 'Print more information.'},
+  { name: 'config', alias: 'c', type: String, defaultOption: true, description: 'Specify configuration file to start.' },
+  { name: 'server', alias: 's', type: String, description: 'Configuration server for update/replace action.'},
+  { name: 'timeout', alias: 't', type: Number, description: 'Action timeout, default 10 seconds.' }
+]
+const options = commandLineArgs(optionDefinitions)
+process.on('uncaughtException', (err) => {
+  logger.error('Unhandled error', err);
+});
+if ( options.help ) {
+  const sections = [
+    {
+      header: 'Configuration server',
+      content: 'Manage configuration and nodes.'
+    },
+    {
+      header: 'Options',
+      optionList: optionDefinitions
+    }
+  ]
+  const usage = getUsage(sections)
+  console.log(usage);
+  process.exit(1);
+}
+logger.setDebug(!!options.verbose);
+{
+  if ( !options.config ) {
+    console.error('Missing configuration parameter!');
+    process.exit(1);
+  }
+  var server = options.server || 'http://localhost:9011';
+  var io = require('socket.io-client');
+  var socket = io(server);
+  console.log('connect to ',server);
+
+  socket.on('error', function(err){
+    logger.error('websocket error', err);
+  });
+  socket.on(Const.EVENT_SETCONFIG, (err)=>{
+    console.info('Update configuration successfully!');
+    process.exit(1);
+  });
+  socket.on('connect', ()=>{
+    console.info('connected');
+    co(function*(){
+      const loadConfig = require('../lib/loader');
+      var data = yield loadConfig(options.config);
+      var id = uuid.create().toString();
+      socket.emit(Const.EVENT_SETCONFIG, {id: id, data: data});
+    }).catch((err)=>{
+      logger.error('Error updating configuration to server ' + server, err);
+    });
+  });
+}
